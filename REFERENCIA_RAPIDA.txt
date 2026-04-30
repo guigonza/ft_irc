@@ -1,0 +1,250 @@
+================================================================================
+                    REFERENCIA RÁPIDA - BOT IRC
+                         Quick Start Guide
+================================================================================
+
+COMPILACIÓN
+===========
+
+Versión normal (sin bot):
+  $ cd /home/carbon/irc && make all
+
+Versión bonus (con bot):
+  $ cd /home/carbon/irc && make bonus
+
+Ambas versiones:
+  $ make all && make bonus
+
+Limpiar:
+  $ make clean        # Elimina objetos
+  $ make fclean       # Elimina todo
+
+
+EJECUCIÓN
+=========
+
+Servidor sin bot:
+  $ ./ircserv 6667 password
+
+Servidor con bot:
+  $ ./ircserv_bonus 6667 password
+
+
+CONEXIÓN DE CLIENTE
+===================
+
+Netcat (recomendado):
+  $ nc localhost 6667
+
+Telnet:
+  $ telnet localhost 6667
+
+Irssi:
+  $ irssi --connect=localhost --port=6667
+
+
+AUTENTICACIÓN (en el cliente)
+=============================
+
+  PASS password
+  NICK mynick
+  USER myuser 0 * :My Name
+  JOIN #general
+
+
+COMANDOS DEL BOT
+================
+
+Ayuda:
+  PRIVMSG #canal :!help
+
+Ping (verificar activo):
+  PRIVMSG #canal :!ping
+  Respuesta: Pong!
+
+Echo (repetir mensaje):
+  PRIVMSG #canal :!echo Mensaje aquí
+  Respuesta: Mensaje aquí
+
+Información servidor:
+  PRIVMSG #canal :!info
+  Respuesta: Servidor ft_irc v1.0 | Uptime: XXXs
+
+Contador:
+  PRIVMSG #canal :!contador         → Incrementa
+  PRIVMSG #canal :!contador reset   → Reinicia a 0
+
+Hora:
+  PRIVMSG #canal :!hora
+  Respuesta: 2026-04-29 14:32:45
+
+Usuarios en canal:
+  PRIVMSG #canal :!usuarios
+  Respuesta: Usuarios en #canal: alice bob @operator
+
+
+TESTING AUTOMATIZADO
+====================
+
+Test rápido con bot:
+  $ ./test_bot.sh
+
+Test sin bot:
+  $ ./test_bot.sh --simple
+
+Test solo compilación:
+  $ ./test_bot.sh --compile-only
+
+Test sin compilar (servidor activo en otra terminal):
+  $ ./test_bot.sh --test-only
+
+Ayuda del script:
+  $ ./test_bot.sh --help
+
+
+TROUBLESHOOTING
+===============
+
+Puerto en uso:
+  $ lsof -i :6667
+  $ ./ircserv_bonus 6668 password  (cambiar puerto)
+
+Bot no responde:
+  1. Compilar con: make bonus
+  2. Ejecutar con: ./ircserv_bonus
+  3. Estar en #general o #random
+  4. Prefijo "!" obligatorio: !comando
+
+No hay conexión:
+  $ netstat -tulpn | grep 6667
+  (verificar que servidor está corriendo)
+
+Cliente se desconecta:
+  Verificar formato IRC (PRIVMSG, NICK, USER)
+  Ver GUIA_DE_USO.txt para ejemplos
+
+
+FLUJO TÍPICO DE PRUEBA
+======================
+
+Terminal 1 (Servidor):
+  $ cd /home/carbon/irc
+  $ ./ircserv_bonus 6667 pass
+
+Terminal 2 (Cliente):
+  $ nc localhost 6667
+  PASS pass
+  NICK usuario
+  USER usuario 0 * :Usuario Test
+  JOIN #general
+  PRIVMSG #general :!help
+  PRIVMSG #general :!ping
+  PRIVMSG #general :!contador
+  PRIVMSG #general :!info
+  QUIT
+
+
+ARCHIVOS IMPORTANTES
+====================
+
+main.cpp              → Entrada sin bot
+main_bonus.cpp        → Entrada con bot
+Bot.hpp/Bot.cpp       → Implementación del bot
+Makefile              → Configuración compilación
+ircserv               → Ejecutable sin bot
+ircserv_bonus         → Ejecutable con bot
+test_bot.sh           → Script testing automatizado
+GUIA_DE_USO.txt       → Guía completa
+ANALISIS_PROYECTO.txt → Análisis técnico
+PLAN_BOT_BONUS.txt    → Diseño del bot
+
+
+COMANDOS ÚTILES
+===============
+
+Ver estado:
+  $ ps aux | grep ircserv
+
+Matar proceso:
+  $ pkill -f ircserv
+
+Ver puertos activos:
+  $ netstat -tulpn | grep 666
+
+Ver logs en tiempo real (otra terminal):
+  $ tail -f <archivo_log>
+
+Compilar y ejecutar inmediatamente:
+  $ make all && ./ircserv 6667 pass
+
+Clean build:
+  $ make fclean && make all && make bonus
+
+
+CASOS DE USO FRECUENTES
+========================
+
+1. Verificar servidor activo:
+   - Terminal 1: ./ircserv_bonus 6667 pass
+   - Terminal 2: nc localhost 6667
+   - Cliente: PRIVMSG #general :!ping
+   - Esperado: Pong!
+
+2. Probar múltiples usuarios:
+   - Terminal 1: servidor
+   - Terminal 2: Cliente A → JOIN #general → !contador
+   - Terminal 3: Cliente B → JOIN #general → !contador
+   - Esperado: 1, 2 (incrementa)
+
+3. Testing completo:
+   $ ./test_bot.sh
+   (corre todos los tests automáticamente)
+
+
+TIPS Y TRUCOS
+=============
+
+• Presiona Ctrl+C para salir de netcat
+• En netcat, presiona Enter después de cada comando
+• Si no ves respuestas, verifica que usaste "!" en comando
+• Cambiar puerto si 6667 está en uso
+• Múltiples terminales para pruebas simultáneas
+• Ver GUIA_DE_USO.txt para ejemplos completos
+
+
+ESTRUCTURA DE COMANDO IRC
+==========================
+
+Autenticación:
+  PASS <password>
+  NICK <nickname>
+  USER <user> <host> <server> :<realname>
+
+Canales:
+  JOIN <#canal>
+  PART <#canal> [:<reason>]
+  TOPIC <#canal> [:<new_topic>]
+  PRIVMSG <#canal|nick> :<mensaje>
+
+Bot (nuestro):
+  PRIVMSG <#canal> :!comando [args]
+
+
+RESPUESTAS RFC IRC
+===================
+
+001 = Welcome to IRC Network
+002 = Your host is...
+003 = This server was created
+004 = Server info
+353 = Names list
+366 = End of NAMES list
+401 = No such nick
+403 = No such channel
+442 = You're not on that channel
+
+
+================================================================================
+Para más información: cat GUIA_DE_USO.txt
+Última actualización: 29 de Abril de 2026
+================================================================================

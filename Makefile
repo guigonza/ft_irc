@@ -3,10 +3,10 @@
 #                                                         :::      ::::::::    #
 #    Makefile                                           :+:      :+:    :+:    #
 #                                                     +:+ +:+         +:+      #
-#    By: Guille <Guille@student.42.fr>              +#+  +:+       +#+         #
+#    By: carbon <carbon@student.42.fr>              +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/02/08 07:53:27 by Guille            #+#    #+#              #
-#    Updated: 2026/03/23 12:00:39 by Guille           ###   ########.fr        #
+#    Updated: 2026/04/28 21:24:27 by carbon           ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -16,7 +16,7 @@ CXX = c++
 CXXFLAGS = -Wall -Wextra -Werror -std=c++98 
 DEPFLAGS = -MMD -MP
 SRCS =  main.cpp Server.cpp Client.cpp Channel.cpp
-BONUS_SRC = $(SRCS) Bot.cpp
+BONUS_SRC = main_bonus.cpp Server.cpp Client.cpp Channel.cpp Bot.cpp
 OBJDIR = obj
 OBJS = $(addprefix $(OBJDIR)/, $(SRCS:.cpp=.o))
 BONUS_OBJ = $(addprefix $(OBJDIR)/, $(BONUS_SRC:.cpp=.o))
@@ -30,9 +30,12 @@ $(NAME): $(OBJDIR) $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $(NAME) $(OBJS)
 
 bonus: $(OBJDIR) $(BONUS_OBJ)
-	$(CXX) $(CXXFLAGS) -o $(BONUS_NAME) $(BONUS_OBJ)
+	$(CXX) $(CXXFLAGS) -o $(BONUS_NAME) $(OBJDIR)/main_bonus.o $(OBJDIR)/Server.o $(OBJDIR)/Client.o $(OBJDIR)/Channel.o $(OBJDIR)/Bot.o
 	
 $(OBJDIR)/%.o: %.cpp | $(OBJDIR)
+	$(CXX) $(CXXFLAGS) $(DEPFLAGS) -c $< -o $@
+
+$(OBJDIR)/main_bonus.o: main_bonus.cpp | $(OBJDIR)
 	$(CXX) $(CXXFLAGS) $(DEPFLAGS) -c $< -o $@
 
 -include $(DEPS)

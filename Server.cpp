@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Server.cpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: Guille <Guille@student.42.fr>              +#+  +:+       +#+        */
+/*   By: carbon <carbon@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/03/23 10:10:58 by Guille            #+#    #+#             */
-/*   Updated: 2026/03/23 11:42:33 by Guille           ###   ########.fr       */
+/*   Updated: 2026/04/28 21:24:27 by carbon           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -23,6 +23,7 @@
 # include <sstream>
 # include <cerrno>
 # include <arpa/inet.h>
+# include <cstdlib>
 
 // ─────────────────────────────────────────────
 // OCF
@@ -218,7 +219,7 @@ void Server::_cleanEmptyChannels()
         if (it->second->memberCount() == 0)
         {
             delete it->second;
-            it = _channels.erase(it);
+            _channels.erase(it++);
         }
         else
             ++it;
@@ -914,7 +915,7 @@ void Server::_cmdMode(Client& client, const std::vector<std::string>& params)
                                "MODE :Not enough parameters");
                     return;
                 }
-                int limit = std::atoi(params[argIdx].c_str());
+                int limit = atoi(params[argIdx].c_str());
                 if (limit > 0)
                 {
                     chan->setLimit(limit);

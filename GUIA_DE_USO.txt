@@ -1,0 +1,831 @@
+================================================================================
+                    GUÍA DE USO - BOT IRC ft_irc
+                              Testing Manual
+================================================================================
+
+CONTENIDO:
+1. Compilación
+2. Estructura del Proyecto
+3. Ejecución del Servidor
+4. Conexión de Clientes
+5. Comandos del Bot
+6. Ejemplos Prácticos
+7. Casos de Uso
+8. Troubleshooting
+
+================================================================================
+1. COMPILACIÓN
+================================================================================
+
+COMPILAR VERSIÓN SIN BOT:
+------------------------
+cd /home/carbon/irc
+make clean
+make all
+
+Resultado: Ejecutable 'ircserv' (sin bot)
+
+COMPILAR VERSIÓN CON BOT:
+------------------------
+cd /home/carbon/irc
+make clean
+make bonus
+
+Resultado: Ejecutable 'ircserv_bonus' (con bot integrado)
+
+COMPILAR AMBAS:
+---------------
+cd /home/carbon/irc
+make clean
+make all
+make bonus
+
+LIMPIAR COMPILACIÓN:
+--------------------
+make clean          # Elimina archivos .o y .d
+make fclean         # Elimina todo (ejecutables, .o, .d)
+make re             # Recompila desde cero
+
+================================================================================
+2. ESTRUCTURA DEL PROYECTO
+================================================================================
+
+/home/carbon/irc/
+├── main.cpp              ← Entrada principal sin bot
+├── main_bonus.cpp        ← Entrada principal con bot + fork
+├── Bot.hpp / Bot.cpp     ← Clase Bot
+├── Server.hpp / Server.cpp
+├── Client.hpp / Client.cpp
+├── Channel.hpp / Channel.cpp
+├── Makefile
+├── ircserv               ← Ejecutable sin bot
+├── ircserv_bonus         ← Ejecutable con bot
+└── obj/                  ← Archivos compilados
+
+COMPONENTES:
+
+Server: Gestiona conexiones, canales, usuarios
+Client: Representa un usuario conectado
+Channel: Representa un canal IRC
+Bot: Cliente automático que responde comandos
+
+================================================================================
+3. EJECUCIÓN DEL SERVIDOR
+================================================================================
+
+SIN BOT (versión normal):
+------------------------
+./ircserv <puerto> <contraseña>
+
+Ejemplo:
+  ./ircserv 6667 micontraseña
+
+Salida esperada:
+  [Server] Listening on port 6667
+
+Ctrl+C para detener
+
+CON BOT (versión bonus):
+------------------------
+./ircserv_bonus <puerto> <contraseña>
+
+Ejemplo:
+  ./ircserv_bonus 6667 micontraseña
+
+Salida esperada:
+  [Server] Listening on port 6667
+  [Bot] Conectando a localhost:6667...
+  [Bot] Autenticado como ft_bot
+  [Bot] Bot iniciado y conectado. Esperando comandos...
+
+El bot se ejecuta en un proceso hijo (fork)
+Ctrl+C detiene tanto servidor como bot
+
+PUERTOS RECOMENDADOS:
+  6667 - Puerto estándar IRC
+  6666 - Alternativa
+  8888 - Para pruebas
+  9999 - Para pruebas
+
+================================================================================
+4. CONEXIÓN DE CLIENTES
+================================================================================
+
+OPCIÓN A: NETCAT (RECOMENDADO PARA PRUEBAS)
+--------------------------------------------
+
+Terminal 1 - Iniciar servidor:
+  $ ./ircserv_bonus 6667 micontraseña
+
+Terminal 2 - Cliente IRC:
+  $ nc localhost 6667
+
+Terminal 3 - Cliente IRC (opcional, para probar multiplos):
+  $ nc localhost 6667
+
+
+OPCIÓN B: TELNET
+-----------------
+
+Terminal 1 - Iniciar servidor:
+  $ ./ircserv_bonus 6667 micontraseña
+
+Terminal 2 - Cliente:
+  $ telnet localhost 6667
+
+
+OPCIÓN C: Cliente IRC Real (irssi)
+-----------------------------------
+
+Terminal 1 - Iniciar servidor:
+  $ ./ircserv_bonus 6667 micontraseña
+
+Terminal 2 - Cliente:
+  $ irssi
+
+
+OPCIÓN D: Script Automatizado
+------------------------------
+
+Ver sección 6 (Ejemplos Prácticos)
+
+
+================================================================================
+5. COMANDOS DEL BOT
+================================================================================
+
+El bot responde a comandos que comienzan con "!" en PRIVMSG.
+
+COMANDO 1: !help
+----------------
+Descripción: Muestra lista de comandos disponibles
+
+Uso:
+  PRIVMSG #canal :!help
+  PRIVMSG ft_bot :!help
+
+Respuesta:
+  :ft_bot PRIVMSG #canal :Comandos disponibles: !help !echo !info !contador 
+                          !hora !usuarios !ping
+
+Cuándo usar:
+  • Al conectar por primera vez
+  • Para recordar comandos disponibles
+
+
+COMANDO 2: !echo <mensaje>
+---------------------------
+Descripción: Repite un mensaje en el canal
+
+Uso:
+  PRIVMSG #canal :!echo Hola mundo
+  PRIVMSG #canal :!echo Prueba del bot
+
+Respuesta:
+  :ft_bot PRIVMSG #canal :Hola mundo
+  :ft_bot PRIVMSG #canal :Prueba del bot
+
+Ejemplos:
+  • PRIVMSG #general :!echo Bienvenido al servidor IRC
+  • PRIVMSG #test :!echo El bot funciona!
+
+Cuándo usar:
+  • Verificar que el bot está activo
+  • Pruebas simples de comunicación
+
+
+COMANDO 3: !info
+-----------------
+Descripción: Muestra información del servidor
+
+Información proporcionada:
+  • Nombre del servidor
+  • Versión
+  • Uptime (tiempo transcurrido desde inicio)
+
+Uso:
+  PRIVMSG #canal :!info
+  PRIVMSG ft_bot :!info
+
+Respuesta:
+  :ft_bot PRIVMSG #canal :Servidor ft_irc v1.0 | Uptime: 125s
+
+Ejemplos:
+  • Servidor iniciado hace 2 minutos: Uptime: 120s
+  • Servidor iniciado hace 1 hora: Uptime: 3600s
+
+Cuándo usar:
+  • Verificar que el servidor está funcionando
+  • Conocer cuánto tiempo lleva activo
+
+
+COMANDO 4: !contador [reset]
+-----------------------------
+Descripción: Mantiene contador de usos persistente
+
+Uso sin argumentos:
+  PRIVMSG #canal :!contador
+
+Respuesta:
+  :ft_bot PRIVMSG #canal :Contador: 1
+  (siguiente uso)
+  :ft_bot PRIVMSG #canal :Contador: 2
+  (siguiente uso)
+  :ft_bot PRIVMSG #canal :Contador: 3
+
+Uso con reset:
+  PRIVMSG #canal :!contador reset
+
+Respuesta:
+  :ft_bot PRIVMSG #canal :Contador: 0
+
+Ejemplos de secuencia:
+  Usuario 1: PRIVMSG #general :!contador
+  Bot:       Contador: 1
+  
+  Usuario 2: PRIVMSG #general :!contador
+  Bot:       Contador: 2
+  
+  Usuario 3: PRIVMSG #general :!contador reset
+  Bot:       Contador: 0
+  
+  Usuario 1: PRIVMSG #general :!contador
+  Bot:       Contador: 1
+
+Cuándo usar:
+  • Demostración de estado persistente
+  • Contador de actividad
+  • Reset de estadísticas
+
+
+COMANDO 5: !hora
+-----------------
+Descripción: Muestra hora y fecha del servidor
+
+Uso:
+  PRIVMSG #canal :!hora
+  PRIVMSG ft_bot :!hora
+
+Respuesta:
+  :ft_bot PRIVMSG #canal :2026-04-29 14:32:45
+  :ft_bot PRIVMSG #canal :2026-04-29 14:33:12
+
+Formato:
+  YYYY-MM-DD HH:MM:SS (Hora del servidor local)
+
+Cuándo usar:
+  • Verificar hora del servidor
+  • Sincronización de eventos
+
+
+COMANDO 6: !usuarios
+---------------------
+Descripción: Lista usuarios en el canal actual
+
+Uso:
+  PRIVMSG #canal :!usuarios
+
+Respuesta:
+  :ft_bot PRIVMSG #canal :Usuarios en #canal: usuario1 usuario2 @ft_bot
+
+Formato:
+  • Nombres separados por espacios
+  • Prefijo @ para operadores del canal
+
+Ejemplos:
+  Canal con 3 usuarios: Usuarios en #general: alice bob @charlie
+  Canal con 1 usuario: Usuarios en #test: alice
+
+Cuándo usar:
+  • Ver quién está en el canal
+  • Verificar presencia de usuarios específicos
+
+
+COMANDO 7: !ping
+-----------------
+Descripción: Verifica que el bot está activo (keep-alive)
+
+Uso:
+  PRIVMSG #canal :!ping
+  PRIVMSG ft_bot :!ping
+
+Respuesta:
+  :ft_bot PRIVMSG #canal :Pong!
+
+Cuándo usar:
+  • Verificación rápida de actividad
+  • Prueba de conectividad
+
+
+================================================================================
+6. EJEMPLOS PRÁCTICOS
+================================================================================
+
+EJEMPLO 1: SESIÓN SIMPLE CON NETCAT
+------------------------------------
+
+Terminal 1 (Servidor):
+  $ cd /home/carbon/irc
+  $ ./ircserv_bonus 6667 password
+  
+  [Output]
+  [Server] Listening on port 6667
+  [Bot] Conectando a localhost:6667...
+  [Bot] Autenticado como ft_bot
+  [Bot] Bot iniciado y conectado. Esperando comandos...
+
+Terminal 2 (Cliente 1):
+  $ nc localhost 6667
+  
+  (escribe:)
+  PASS password
+  NICK usuario1
+  USER usuario1 0 * :Usuario Uno
+  JOIN #general
+  PRIVMSG #general :!help
+  PRIVMSG #general :!ping
+  PRIVMSG #general :!echo Hola a todos
+  PRIVMSG #general :!info
+  QUIT
+
+Output esperado:
+  :ft_irc 001 usuario1 :Welcome to the Internet Relay Network...
+  :ft_irc 002 usuario1 :Your host is ft_irc...
+  :ft_irc 003 usuario1 :This server was created...
+  :ft_irc 004 usuario1 :ft_irc ft_irc v1.0
+  :usuario1!usuario1@127.0.0.1 JOIN #general
+  :ft_irc 353 usuario1 = #general :@ft_bot usuario1
+  :ft_irc 366 usuario1 #general :End of /NAMES list
+  :ft_bot PRIVMSG #general :Comandos disponibles: !help !echo !info...
+  :ft_bot PRIVMSG #general :Pong!
+  :ft_bot PRIVMSG #general :Hola a todos
+  :ft_bot PRIVMSG #general :Servidor ft_irc v1.0 | Uptime: XXXs
+
+
+EJEMPLO 2: DOS CLIENTES INTERACTUANDO CON BOT
+----------------------------------------------
+
+Terminal 1 (Servidor):
+  $ ./ircserv_bonus 6667 password
+
+Terminal 2 (Cliente 1):
+  $ nc localhost 6667
+  
+  PASS password
+  NICK alice
+  USER alice 0 * :Alice User
+  JOIN #general
+  (entra en canal #general)
+
+Terminal 3 (Cliente 2):
+  $ nc localhost 6667
+  
+  PASS password
+  NICK bob
+  USER bob 0 * :Bob User
+  JOIN #general
+  (se une al canal #general con alice y ft_bot)
+
+Terminal 2 (alice):
+  PRIVMSG #general :!usuarios
+  (respuesta: Usuarios en #general: @ft_bot alice bob)
+
+Terminal 3 (bob):
+  PRIVMSG #general :!contador
+  (respuesta: Contador: 1)
+
+Terminal 2 (alice):
+  PRIVMSG #general :!contador
+  (respuesta: Contador: 2)
+
+Terminal 3 (bob):
+  PRIVMSG #general :!contador reset
+  (respuesta: Contador: 0)
+
+
+EJEMPLO 3: PRUEBA DE TODOS LOS COMANDOS
+----------------------------------------
+
+Terminal 1:
+  $ ./ircserv_bonus 6667 test
+
+Terminal 2:
+  $ nc localhost 6667
+
+Secuencia de comandos:
+
+  PASS test
+  NICK testuser
+  USER testuser 0 * :Test User
+  JOIN #test
+  
+  PRIVMSG #test :!help
+  [Bot responde con lista de comandos]
+  
+  PRIVMSG #test :!ping
+  [Bot responde: Pong!]
+  
+  PRIVMSG #test :!echo Prueba exitosa
+  [Bot responde: Prueba exitosa]
+  
+  PRIVMSG #test :!info
+  [Bot responde con uptime]
+  
+  PRIVMSG #test :!hora
+  [Bot responde con fecha/hora]
+  
+  PRIVMSG #test :!contador
+  [Bot responde: Contador: 1]
+  
+  PRIVMSG #test :!contador
+  [Bot responde: Contador: 2]
+  
+  PRIVMSG #test :!usuarios
+  [Bot responde con lista de usuarios]
+  
+  PRIVMSG #test :!contador reset
+  [Bot responde: Contador: 0]
+  
+  QUIT
+
+
+EJEMPLO 4: SCRIPT AUTOMATIZADO
+-------------------------------
+
+Crear archivo: test_bot.sh
+
+```bash
+#!/bin/bash
+
+# Parámetros
+PORT=6667
+PASS="testpass"
+HOST="localhost"
+
+# Terminal 1: Iniciar servidor
+./ircserv_bonus $PORT $PASS &
+SERVER_PID=$!
+
+# Esperar a que servidor esté listo
+sleep 2
+
+# Terminal 2: Cliente de prueba
+(
+  sleep 1
+  echo "PASS $PASS"
+  sleep 0.2
+  echo "NICK testuser"
+  sleep 0.2
+  echo "USER testuser 0 * :Test User"
+  sleep 0.5
+  echo "JOIN #general"
+  sleep 0.5
+  echo "PRIVMSG #general :!help"
+  sleep 0.5
+  echo "PRIVMSG #general :!ping"
+  sleep 0.5
+  echo "PRIVMSG #general :!echo Mensaje de prueba"
+  sleep 0.5
+  echo "PRIVMSG #general :!info"
+  sleep 0.5
+  echo "PRIVMSG #general :!contador"
+  sleep 0.5
+  echo "PRIVMSG #general :!contador"
+  sleep 0.5
+  echo "PRIVMSG #general :!hora"
+  sleep 0.5
+  echo "PRIVMSG #general :!usuarios"
+  sleep 0.5
+  echo "QUIT"
+  sleep 1
+) | nc $HOST $PORT
+
+# Esperar a que el cliente termine
+sleep 3
+
+# Matar servidor
+kill $SERVER_PID 2>/dev/null
+
+echo "Test completado"
+```
+
+Ejecutar:
+  $ chmod +x test_bot.sh
+  $ ./test_bot.sh
+
+Salida esperada:
+  Verás el servidor iniciándose
+  El bot conectándose
+  Cliente ejecutando comandos
+  Respuestas del bot
+  Test completado
+
+
+EJEMPLO 5: MÚLTIPLES CANALES
+-----------------------------
+
+Terminal 1 (Servidor):
+  $ ./ircserv_bonus 6667 password
+
+Terminal 2 (Cliente):
+  $ nc localhost 6667
+  
+  PASS password
+  NICK usuario
+  USER usuario 0 * :Usuario
+  
+  # Unirse a canal #general
+  JOIN #general
+  PRIVMSG #general :!help
+  [Bot responde en #general]
+  
+  # Unirse a canal #random
+  JOIN #random
+  PRIVMSG #random :!ping
+  [Bot responde en #random]
+  
+  # Volver a #general
+  PRIVMSG #general :!info
+  [Bot responde en #general]
+  
+  # Salir de #random
+  PART #random
+  
+  # El bot sigue activo en #general
+  PRIVMSG #general :!usuarios
+  [Bot responde con usuarios en #general]
+
+
+================================================================================
+7. CASOS DE USO
+================================================================================
+
+CASO 1: VERIFICACIÓN DE CONECTIVIDAD
+-------------------------------------
+Objetivo: Comprobar que el servidor y el bot están activos
+
+Pasos:
+  1. Compilar versión bonus: make bonus
+  2. Iniciar servidor: ./ircserv_bonus 6667 pass
+  3. Conectarse: nc localhost 6667
+  4. Autenticarse
+  5. Unirse a canal: JOIN #test
+  6. Enviar: PRIVMSG #test :!ping
+  7. Verificar respuesta: Pong!
+
+Resultado esperado: Bot responde con "Pong!"
+
+
+CASO 2: INFORMACIÓN DEL SERVIDOR
+---------------------------------
+Objetivo: Obtener estado del servidor
+
+Pasos:
+  1. Servidor activo con bot
+  2. Cliente conectado en canal
+  3. Enviar: PRIVMSG #test :!info
+  4. Leer uptime y versión
+
+Resultado esperado: 
+  Servidor ft_irc v1.0 | Uptime: XXXX segundos
+
+
+CASO 3: MULTIPLICIDAD DE USUARIOS
+----------------------------------
+Objetivo: Probar que bot funciona con múltiples clientes
+
+Pasos:
+  1. Terminal A: Servidor con bot
+  2. Terminal B: Cliente 1 → JOIN #general → !contador
+  3. Terminal C: Cliente 2 → JOIN #general → !contador
+  4. Terminal D: Cliente 3 → JOIN #general → !contador
+  5. Verificar que contador incrementa
+
+Resultado esperado:
+  Cliente B: Contador: 1
+  Cliente C: Contador: 2
+  Cliente D: Contador: 3
+
+
+CASO 4: REINICIO Y RESET
+------------------------
+Objetivo: Probar que estado del contador persiste/reset
+
+Pasos:
+  1. Cliente A: !contador (responde: 1)
+  2. Cliente B: !contador (responde: 2)
+  3. Cliente C: !contador reset (responde: 0)
+  4. Cliente A: !contador (responde: 1)
+
+Resultado esperado:
+  Contador incrementa, reset lo pone en 0
+
+
+CASO 5: BOT EN MÚLTIPLES CANALES
+---------------------------------
+Objetivo: Bot responde en diferentes canales
+
+Pasos:
+  1. Cliente 1 → JOIN #general → !ping
+  2. Cliente 2 → JOIN #random → !ping
+  3. Cliente 1 → JOIN #test → !ping
+  4. Todos reciben respuestas en sus respectivos canales
+
+Resultado esperado:
+  Bot responde en todos los canales simultáneamente
+
+
+================================================================================
+8. TROUBLESHOOTING
+================================================================================
+
+PROBLEMA 1: "Port already in use"
+----------------------------------
+Error:
+  bind() failed
+
+Soluciones:
+  • Cambiar puerto: ./ircserv_bonus 6668 pass
+  • Esperar 30-60 segundos antes de reiniciar
+  • Matar proceso anterior: pkill -f ircserv
+
+Comando para ver qué puerto está en uso:
+  $ lsof -i :6667
+
+
+PROBLEMA 2: Bot no responde
+----------------------------
+Síntomas:
+  • Envías !help pero no responde
+  • Otros comandos tampoco funcionan
+
+Verificación:
+  1. ¿Compilaste con "make bonus"?
+  2. ¿Ejecutaste ircserv_bonus (no ircserv)?
+  3. ¿Viste "[Bot] Bot iniciado..." en consola?
+  4. ¿Estás en un canal que el bot se unió?
+
+Soluciones:
+  • make clean && make bonus
+  • Reiniciar servidor
+  • Verificar que estés en #general o #random
+
+
+PROBLEMA 3: Cliente no recibe mensajes del bot
+-----------------------------------------------
+Síntomas:
+  • Envías comando pero nada aparece
+  • Otros comandos tampoco responden
+
+Verificación:
+  1. ¿Estás autenticado correctamente?
+  2. ¿Estás en un canal?
+  3. ¿El comando comienza con "!"?
+
+Ejemplo correcto:
+  PRIVMSG #canal :!ping
+
+Ejemplos incorrectos:
+  PRIVMSG #canal :ping         (sin !)
+  PRIVMSG ft_bot :!ping        (privado al bot)
+  help                         (sin PRIVMSG)
+
+
+PROBLEMA 4: "No such nick"
+---------------------------
+Error:
+  :ft_irc 401 tunick :ft_bot :No such nick
+
+Causa:
+  Intentaste enviar PRIVMSG ft_bot :!help
+
+Solución:
+  Los comandos deben ir a canales, no al bot directamente
+  Correcto: JOIN #general → PRIVMSG #general :!help
+
+
+PROBLEMA 5: Timeout de conexión
+--------------------------------
+Síntomas:
+  • nc localhost 6667 no conecta
+  • telnet localhost 6667 falla
+
+Verificación:
+  1. ¿Iniciaste el servidor?
+  2. ¿Usaste el puerto correcto?
+  3. ¿El firewall bloquea el puerto?
+
+Comando para verificar servidor activo:
+  $ netstat -tulpn | grep 6667
+
+
+PROBLEMA 6: Bot no se une a canales
+------------------------------------
+Síntomas:
+  • No ves "ft_bot" en NAMES
+  • Bot no responde
+
+Verificación:
+  En Bot.cpp, línea 48-50:
+  _send("JOIN #general\r\n");
+  _send("JOIN #random\r\n");
+
+Solución:
+  Editar Bot.cpp para agregar/cambiar canales
+
+
+PROBLEMA 7: Compilación falla
+------------------------------
+Error:
+  c++: error: ...
+
+Soluciones:
+  $ make clean
+  $ make fclean
+  $ make bonus
+
+O si persiste:
+  $ rm -rf obj/
+  $ make bonus
+
+
+PROBLEMA 8: Buffer de netcat no se envía
+-----------------------------------------
+Síntomas:
+  • Escribes pero nada pasa
+
+Solución en netcat:
+  Presiona Enter después de cada línea
+  
+Ejemplo:
+  $ nc localhost 6667
+  PASS password[ENTER]
+  NICK usuario[ENTER]
+  USER usuario 0 * :Test[ENTER]
+
+
+================================================================================
+CHECKLIST DE TESTING COMPLETO
+================================================================================
+
+□ Compilación
+  □ make clean
+  □ make all (sin errores)
+  □ ircserv generado
+
+□ Compilación bonus
+  □ make clean
+  □ make bonus (sin errores)
+  □ ircserv_bonus generado
+
+□ Ejecución sin bot
+  □ ./ircserv 6667 password
+  □ [Server] Listening on port 6667
+  □ Cliente se conecta
+  □ Ctrl+C para detener
+
+□ Ejecución con bot
+  □ ./ircserv_bonus 6667 password
+  □ [Bot] iniciado
+  □ Cliente se conecta
+  □ Bot está en canal
+
+□ Comandos del bot
+  □ !help - Lista comandos
+  □ !ping - Responde Pong
+  □ !echo - Repite mensaje
+  □ !info - Info del servidor
+  □ !contador - Incrementa contador
+  □ !contador reset - Reset contador
+  □ !hora - Muestra hora
+  □ !usuarios - Lista usuarios
+
+□ Múltiples clientes
+  □ Cliente A se conecta
+  □ Cliente B se conecta
+  □ Ambos en mismo canal
+  □ Ambos usan comandos del bot
+
+□ Múltiples canales
+  □ Cliente en #general → !ping
+  □ Cliente en #random → !ping
+  □ Bot responde en ambos
+
+□ Funcionamiento general
+  □ Sin crashes
+  □ Sin memory leaks visibles
+  □ Respuestas rápidas
+  □ No hay deadlocks
+
+================================================================================
+FIN DE LA GUÍA DE TESTING
+================================================================================
+
+Última actualización: 29 de Abril de 2026
+
+Para más información, consulta:
+  - ANALISIS_PROYECTO.txt (análisis técnico)
+  - PLAN_BOT_BONUS.txt (diseño del bot)
+  - Código fuente en los archivos .cpp
+
+================================================================================

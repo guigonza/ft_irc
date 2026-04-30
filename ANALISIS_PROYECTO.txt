@@ -1,0 +1,712 @@
+================================================================================
+                    ANÁLISIS COMPLETO - PROYECTO ft_irc
+                         Servidor IRC - 42 School
+================================================================================
+
+CONTENIDO DEL DOCUMENTO:
+1. Estructura y Flujo del Programa
+2. Análisis por Archivo
+3. Flujo Detallado de Comandos
+4. Compatibilidad con Especificaciones
+5. Compilación y Uso
+
+================================================================================
+1. ESTRUCTURA Y FLUJO DEL PROGRAMA
+================================================================================
+
+ARQUITECTURA GENERAL
+--------------------
+El proyecto es un servidor IRC (Internet Relay Chat) multi-cliente implementado 
+en C++98 que maneja múltiples conexiones simultáneamente usando poll() para I/O 
+no bloqueante. 
+
+Arquitectura:
+    Cliente 1 ─┐
+    Cliente 2 ─┼─ SOCKET LISTENING ─ Server (poll) ─┬─ Procesamiento comandos
+    Cliente 3 ─┘                                      ├─ Gestión de canales
+                                                      └─ Broadcasting
+
+FLUJO OPERACIONAL
+-----------------
+1. Inicialización: El servidor se inicia con puerto y contraseña
+2. Aceptación: Recibe conexiones en el socket principal con accept()
+3. Recepción: Datos llegan en el buffer del cliente (máx 512 bytes)
+4. Parseo: Se extrae la línea completa (\r\n) y se parsea el comando
+5. Validación: Se verifica si el cliente está autenticado y registrado
+6. Ejecución: Se ejecuta el comando correspondiente
+7. Broadcasting: El mensaje se distribuye a los afectados
+8. Limpieza: Se eliminarán canales vacíos automáticamente
+
+================================================================================
+2. ANÁLISIS POR ARCHIVO
+================================================================================
+
+ARCHIVO: main.cpp
+------------------
+Propósito: Punto de entrada del programa
+
+Funciones principales:
+  • main(int argc, char* argv[])
+    - Valida parámetros de línea de comandos
+    - Requiere exactamente 2 argumentos: puerto (1-65535) y contraseña (no vacía)
+    - Instancia el servidor y llama a run()
+    - Manejo básico de excepciones
+@
+
+ARCHIVO: Server.hpp / Server.cpp
+---------------------------------
+Propósito: Núcleo del servidor, gestión de conexiones y procesamiento de comandos
+
+ATRIBUTOS PRINCIPALES:
+  • _port: Puerto de escucha
+  • _password: Contraseña requerida para autenticación
+  • _name: Nombre del servidor ("ft_irc")
+  • _serverFd: File descriptor del socket principal
+  • _fds: Vector de pollfd para monitorizar conexiones
+  • _clients: Mapa de fd → Cliente (std::map<int, Client*>)
+  • _channels: Mapa de nombre → Canal (std::map<std::string, Channel*>)
+
+MÉTODOS PÚBLICOS:
+  • Server(int port, const std::string& password)
+    Constructor: inicializa socket, lo vincula y lo pone a escuchar
+    
+  • ~Server()
+    Destructor: cierra todos los clientes, canales y el socket principal
+    
+  • void run()
+    Loop infinito con poll() para gestión de eventos
+    Monitoriza socket principal y clientes activos
+    Maneja conexiones nuevas y datos entrantes
+
+MÉTODOS PRIVADOS - Gestión de conexiones:
+  • void _setupSocket()
+    Crea socket AF_INET SOCK_STREAM
+    Configura SO_REUSEADDR y O_NONBLOCK
+    Vincula a INADDR_ANY:puerto y comienza a escuchar
+    Añade el fd del servidor al vector de poll
+    
+  • void _acceptClient()
+    Acepta nuevas conexiones con accept()
+    Configura el nuevo fd como no bloqueante
+    Obtiene la IP del cliente con inet_ntop()
+    Crea un nuevo objeto Client y lo añade a _clients
+    
+  • void _handleClient(int fd)
+    Lee datos con recv() (máx 512 bytes)
+    Maneja errores: EAGAIN/EWOULDBLOCK o desconexión (bytes == 0)
+    Añade datos al buffer del cliente
+    Extrae líneas completas y procesa cada una
+    
+  • void _disconnectClient(int fd)
+    Envía notificación de desconexión a todos los canales
+    Elimina el cliente de los canales
+    Limpia el vector _fds
+    Cierra el file descriptor
+    Libera memoria del cliente
+    
+  • void _cleanEmptyChannels()
+    Elimina canales con 0 miembros
+    Se llama después de PART y KICK
+
+MÉTODOS PRIVADOS - Procesamiento de comandos:
+  • void _processLine(Client& c, const std::string& line)
+    Parsea la línea en: [prefix] comando [param1] [param2] [:trailing]
+    Convierte comando a mayúsculas
+    Distribuye a comandos específicos basado en comando y estado de registro
+
+COMANDOS DE AUTENTICACIÓN (no requieren registro):
+  • void _cmdPass(Client& c, const std::vector<std::string>& params)
+    Valida la contraseña contra _password
+    Si incorrecta: error 464 y desconecta
+    Establece _passOk = true si correcta
+    Prohíbe reregistro (error 462)
+    
+  • void _cmdNick(Client& c, const std::vector<std::string>& params)
+    Verifica que el nickname sea único
+    Si ya existe: error 433
+    Asigna nuevo nickname al cliente
+    Si ya registrado: notifica cambio de NICK a todos sus canales
+    
+  • void _cmdUser(Client& c, const std::vector<std::string>& params, 
+                  const std::string& trailing)
+    Requiere mínimo 3 parámetros: username, 0 (*), *
+    Asigna username y realname al cliente
+    Si ahora está registrado (PASS + NICK + USER): envía welcome messages
+
+COMANDOS DE CANAL (requieren registro):
+  • void _cmdJoin(Client& c, const std::vector<std::string>& params)
+    Requiere nombre del canal comenzando por '#'
+    Valida restricciones si el canal existe:
+      - Modo +i (invite-only): requiere invitación previa
+      - Modo +k (key): requiere contraseña correcta
+      - Modo +l (limit): rechaza si está lleno
+    Crea el canal si no existe
+    El primer usuario en JOIN se convierte en operador
+    Notifica a todos con JOIN message
+    Envía topic actual (332 o 331 si no hay)
+    Envía lista de usuarios (353) y fin de lista (366)
+    
+  • void _cmdPart(Client& c, const std::vector<std::string>& params,
+                  const std::string& trailing)
+    Valida que el cliente esté en el canal
+    Envía PART message a todos en el canal (incluyendo quien sale)
+    Elimina cliente del canal
+    Limpia canales vacíos
+    
+  • void _cmdPrivmsg(Client& c, const std::vector<std::string>& params,
+                     const std::string& trailing)
+    Valida que haya destinatario y mensaje
+    Si destino comienza con '#': mensaje a canal
+      - Valida que el canal existe
+      - Valida que el cliente está en el canal
+      - Broadcast a todos EXCEPTO quien envía
+    Si no: mensaje privado a nick
+      - Valida que el nick existe
+      - Envía directamente al cliente
+    
+  • void _cmdQuit(Client& c, const std::string& trailing)
+    Envía QUIT message a todos los canales donde está
+    Cierra la conexión gracefully
+    Desconecta el cliente
+    
+  • void _cmdPing(Client& c, const std::vector<std::string>& params,
+                  const std::string& trailing)
+    Responde con PONG + el token recibido
+    Usado para keep-alive
+
+COMANDOS DE OPERADOR (requieren ser operador del canal):
+  • void _cmdKick(Client& c, const std::vector<std::string>& params,
+                  const std::string& trailing)
+    Requiere: #canal nickname [razón]
+    Valida que el cliente es operador del canal
+    Valida que el target está en el canal
+    Broadcast de KICK message a todos
+    Elimina target del canal
+    
+  • void _cmdInvite(Client& c, const std::vector<std::string>& params)
+    Requiere: nickname #canal
+    Valida que el cliente es operador del canal
+    Registra invitación en el canal (para modo +i)
+    Notifica al cliente invitado
+    Confirma al operador (código 341)
+    
+  • void _cmdTopic(Client& c, const std::vector<std::string>& params,
+                   const std::string& trailing)
+    Requiere: #canal [nuevo_topic]
+    Si no hay topic: devuelve topic actual (332 o 331)
+    Si hay topic: cambia el tema
+    Si modo +t: solo operadores pueden cambiar
+    Broadcast de cambio de topic a todos en el canal
+    
+  • void _cmdMode(Client& c, const std::vector<std::string>& params)
+    Requiere: #canal [+/-modos] [argumentos]
+    Si solo #canal: devuelve modos actuales (código 324)
+    Si con modos: solo operadores pueden cambiar
+    Modos soportados:
+      i = Invite-only (canal privado)
+      t = Topic restringido a operadores
+      k = Key (contraseña) - requiere argumento
+      l = Limit (máximo usuarios) - requiere argumento
+      o = Operator para usuario - requiere argumento (nick)
+    Broadcast de cambio de modos a todos
+
+FUNCIONES AUXILIARES:
+  • void _send(int fd, const std::string& msg)
+    Envía datos crudo con send()
+    
+  • void _sendReply(int fd, const std::string& code, 
+                    const std::string& target, const std::string& msg)
+    Envía respuesta formateada IRC:
+    ":servidor CÓDIGO target :mensaje\r\n"
+    Ej: ":ft_irc 001 nick :Welcome to the IRC Network"
+    
+  • void _sendWelcome(Client& c)
+    Envía 4 mensajes de bienvenida:
+    001 - Welcome to the Internet Relay Network
+    002 - Your host is...
+    003 - This server was created...
+    004 - Server info
+    
+  • Client* _getClientByNick(const std::string& nick)
+    Busca un cliente por su nickname
+    Recorre _clients buscando coincidencia
+    Retorna NULL si no encontrado
+    
+  • Channel* _getChannel(const std::string& name)
+    Busca un canal por nombre en _channels
+    Retorna NULL si no existe
+    
+  • Channel* _getOrCreateChannel(const std::string& name)
+    Busca el canal, lo crea si no existe
+    Retorna puntero al canal
+
+
+ARCHIVO: Client.hpp / Client.cpp
+---------------------------------
+Propósito: Representa un cliente conectado al servidor
+
+ATRIBUTOS PRINCIPALES:
+  • _fd: File descriptor de la conexión TCP
+  • _nick: Nickname actual del cliente (inicial: "*")
+  • _user: Username/login
+  • _realname: Nombre real o descriptivo
+  • _hostname: IP del cliente (cadena)
+  • _passOk: Flag de autenticación contra contraseña (bool)
+  • _nickSet: Flag de nickname establecido (bool)
+  • _userSet: Flag de USER command completado (bool)
+  • _inbuf: Buffer de entrada para líneas incompletas (std::string)
+
+MÉTODOS PÚBLICOS:
+  • Client(int fd, const std::string& hostname)
+    Constructor: inicializa todos los atributos
+    Nick inicial: "*", passOk/nickSet/userSet: false
+    
+  • ~Client()
+    Destructor vacío (Server cierra el fd, no Client)
+    
+  • void appendBuffer(const char* data, int len)
+    Añade datos recibidos al _inbuf interno
+    Permite construir líneas completas entre llamadas
+    
+  • bool getLine(std::string& line)
+    Busca terminador "\r\n" en el buffer
+    Si no encontrado, también busca "\n" (tolerancia)
+    Extrae la línea completa (sin terminador)
+    Elimina la línea del buffer
+    Retorna true si encontró línea, false si incompleta
+    
+  • bool isRegistered() const
+    Retorna: _passOk AND _nickSet AND _userSet
+    Determina si el cliente puede usar comandos normales
+    
+  • void setPassOk()
+    Establece _passOk = true (PASS command exitoso)
+    
+  • void setNick(const std::string& nick)
+    Asigna _nick y _nickSet = true
+    
+  • void setUser(const std::string& user)
+    Asigna _user y _userSet = true
+    
+  • void setRealname(const std::string& realname)
+    Asigna _realname (puede venir del comando USER o por defecto)
+    
+  • int getFd() const
+    Retorna el file descriptor
+    
+  • const std::string& getNick/getUser/getRealname/getHostname() const
+    Getters para atributos privados
+    
+  • std::string prefix() const
+    Construye y retorna: "nick!user@hostname"
+    Usado en mensajes salientes (prefix IRC standard)
+
+
+ARCHIVO: Channel.hpp / Channel.cpp
+-----------------------------------
+Propósito: Representa un canal de IRC con sus miembros y modos
+
+ATRIBUTOS PRINCIPALES:
+  • _name: Nombre del canal (ej: "#general")
+  • _topic: Tema/descripción actual del canal
+  • _key: Contraseña del canal (si modo +k activo)
+  • _limit: Límite máximo de usuarios (si modo +l activo)
+  • _inviteOnly: Flag de modo +i (solo invitados)
+  • _topicRestricted: Flag de modo +t (solo ops pueden cambiar topic)
+  • _hasKey: Flag interno para saber si hay key
+  • _hasLimit: Flag interno para saber si hay límite
+  • _members: Set de punteros a Clients en el canal
+  • _operators: Set de punteros a Clients que son operadores
+  • _invited: Set de punteros a Clients invitados
+
+MÉTODOS PÚBLICOS - Gestión de miembros:
+  • void addMember(Client* client)
+    Añade cliente al set _members
+    
+  • void removeMember(Client* client)
+    Elimina cliente de _members, _operators e _invited
+    Se llama cuando el cliente hace PART o es expulsado
+    
+  • bool hasMember(Client* client) const
+    Verifica si el cliente está en el canal
+    
+  • int memberCount() const
+    Retorna el número de miembros
+
+MÉTODOS PÚBLICOS - Gestión de operadores:
+  • void addOperator(Client* client)
+    Añade cliente a _operators (si está en _members)
+    
+  • void removeOperator(Client* client)
+    Elimina cliente de _operators
+    
+  • bool isOperator(Client* client) const
+    Verifica si el cliente es operador
+
+MÉTODOS PÚBLICOS - Invitaciones:
+  • void addInvited(Client* client)
+    Registra un cliente como invitado (para modo +i)
+    
+  • bool isInvited(Client* client) const
+    Verifica si está en la lista de invitados
+
+MÉTODOS PÚBLICOS - Broadcasting de mensajes:
+  • void broadcast(const std::string& msg)
+    Envía el mensaje a TODOS los miembros del canal
+    Usa send() con el fd de cada cliente
+    
+  • void broadcastExcept(const std::string& msg, Client* exclude)
+    Envía el mensaje a todos EXCEPTO a un cliente específico
+    Usado para que quien envía no reciba eco
+
+MÉTODOS PÚBLICOS - Gestión del tema:
+  • void setTopic(const std::string& topic)
+    Asigna nuevo tema al canal
+    
+  • const std::string& getTopic() const
+    Retorna el tema actual
+    
+  • bool hasTopic() const
+    Retorna true si el tema no está vacío
+
+MÉTODOS PÚBLICOS - Gestión de modos:
+  • void setInviteOnly(bool on) / getters
+    Activa/desactiva modo +i
+    
+  • void setTopicRestricted(bool on) / getters
+    Activa/desactiva modo +t
+    
+  • void setKey(const std::string& key) / removeKey()
+    Establece/elimina contraseña del canal (+k)
+    
+  • void setLimit(int limit) / removeLimit()
+    Establece/elimina límite máximo de usuarios (+l)
+    
+  • bool isInviteOnly() const
+    Verifica modo +i
+    
+  • bool isTopicRestricted() const
+    Verifica modo +t
+    
+  • bool hasKey() const
+    Verifica si hay contraseña
+    
+  • const std::string& getKey() const
+    Retorna la contraseña (si existe)
+    
+  • bool hasLimit() const
+    Verifica si hay límite
+    
+  • int getLimit() const
+    Retorna el límite (si existe)
+
+MÉTODOS PÚBLICOS - Información del canal:
+  • const std::string& getName() const
+    Retorna nombre del canal
+    
+  • std::string namesList() const
+    Construye lista de nicks separados por espacios
+    Prefija con "@" si es operador
+    Usado en respuesta 353 (NAMES)
+    
+  • std::string getModeStr() const
+    Retorna string de modos en formato IRC
+    Ej: "+ikt mikey 10" (invite, topic-restricted, key, limit)
+    Retorna string vacío si no hay modos activos
+
+================================================================================
+3. FLUJO DETALLADO DE COMANDOS
+================================================================================
+
+SECUENCIA DE AUTENTICACIÓN (3-PASO)
+------------------------------------
+CLIENTE                        SERVIDOR
+  │
+  ├─ PASS password ──────────→ [Verifica contra _password]
+  │                            Si correcto: setPassOk()
+  │                            Si incorrecto: error 464 + desconecta
+  │
+  ├─ NICK nickname ──────────→ [Verifica unicidad de nickname]
+  │                            Si único: setNick()
+  │                            Si usado: error 433
+  │
+  ├─ USER user 0 * :realname→ [Verifica parámetros]
+  │                            Asigna username y realname
+  │                            Si registrado: envía welcome (001-004)
+  │
+  └─ [Cliente registrado ✓]
+
+
+EJEMPLO DETALLADO: PRIVMSG A CANAL
+-----------------------------------
+CLIENTE A              SERVIDOR              CANAL #chat         CLIENTE B
+   │                      │                      │                   │
+   ├─ PRIVMSG #chat :hola→ [Verifica #chat existe]  │                   │
+   │                      [Verifica A está en #chat] │                   │
+   │                      [Construye mensaje]        │                   │
+   │                      ├─ broadcastExcept ──────→[Todos excepto A]──→[Recibe]
+   │                      │                         │
+   └─ (no recibe eco)     └─ ok (silencioso)
+
+
+EJEMPLO DETALLADO: JOIN CON MODO +i
+------------------------------------
+Canal vacío (#privado con modo +i)
+A quiere entrar:
+   │
+   ├─ JOIN #privado ─────→ [Verifica +i activo]
+   │                       [Verifica si A está invitado]
+   │                       Si no: error 473 (Cannot join +i)
+   │
+B (operador) invita a A:
+   │
+   ├─ INVITE A #privado ──→ [Verifica que B es op]
+   │                        [Registra A como invitado]
+   │                        [Notifica a A]
+   │
+A intenta nuevamente:
+   │
+   ├─ JOIN #privado ─────→ [Verifica +i]
+   │                       [A está en _invited ✓]
+   │                       [A entra al canal]
+   │                       [Broadcast JOIN]
+
+
+EJEMPLO DETALLADO: MODE +l 5 (LÍMITE)
+--------------------------------------
+OPERADOR en #chat:
+   │
+   ├─ MODE #chat +l 5 ──→ [Verifica que es operador]
+   │                      [setLimit(5)]
+   │                      ├─ broadcast "MODE +l 5"
+   │                      
+Si hay 5 usuarios y otro intenta entrar:
+   │
+   ├─ JOIN #chat ────────→ [memberCount() >= limit]
+   │                       error 471 (Cannot join +l)
+
+
+EJEMPLO DETALLADO: KICK
+-----------------------
+OPERADOR en #chat:
+   │
+   ├─ KICK #chat usuario ──→ [Verifica que es op]
+   │                         [Valida que usuario está en canal]
+   │                         [Construye KICK message]
+   │                         ├─ broadcast mensaje
+   │                         ├─ removeMember(usuario)
+   │
+Usuario es removido del canal sin notificación especial
+
+================================================================================
+4. COMPATIBILIDAD CON ESPECIFICACIONES
+================================================================================
+
+REQUISITOS FUNCIONALES CUBIERTOS:
+----------------------------------
+
+✅ PUERTO Y CONTRASEÑA
+   • Recibidos como parámetros en línea de comandos
+   • Validación de puerto (1-65535)
+   • Validación de contraseña (no vacía)
+
+✅ CONEXIONES NO BLOQUEANTES
+   • Uso de poll() para monitorizar múltiples clientes
+   • O_NONBLOCK en todos los file descriptors
+   • Manejo de EAGAIN/EWOULDBLOCK
+
+✅ AUTENTICACIÓN DE 3 PASOS
+   • PASS → NICK → USER
+   • Validación secuencial
+   • Prohíbe reregistro (error 462)
+
+✅ CANALES PRIVADOS (MODO +i)
+   • Modo invite-only
+   • Sistema de invitaciones con INVITE
+   • Validación al hacer JOIN
+
+✅ PROTECCIÓN DE CANALES (MODO +k)
+   • Modo key (contraseña)
+   • Validación de clave al JOIN
+   • Configuración con MODE +k contraseña
+
+✅ LÍMITE DE USUARIOS (MODO +l)
+   • Modo limit
+   • Rechazo de nuevos miembros si se alcanza
+   • Configuración con MODE +l número
+
+✅ TEMA DE CANAL (TOPIC)
+   • Lectura con TOPIC #canal
+   • Escritura con TOPIC #canal :nuevo_tema
+   • Modo +t (topic restringido a operadores)
+   • Notificación a todos los miembros
+
+✅ OPERADORES DE CANAL
+   • Primer usuario en JOIN se vuelve operador
+   • MODE +o para asignar/revocar operadores
+   • Validación de permisos en comandos
+
+✅ EXPULSIÓN DE USUARIOS (KICK)
+   • Solo operadores pueden usar
+   • Validación de target
+   • Broadcast de acción
+
+✅ MENSAJES PRIVADOS (PRIVMSG)
+   • A canales (#canal)
+   • A nicknames individuales
+   • Validación de existencia de destino
+
+✅ BROADCAST A CANALES
+   • Todos los mensajes se distribuyen
+   • Mecanismo broadcastExcept() para evitar eco
+
+✅ KEEP-ALIVE (PING/PONG)
+   • Respuesta PONG a PING
+   • Mantiene conexión activa
+
+✅ CÓDIGOS DE RESPUESTA IRC
+   001 Welcome to IRC Network
+   002 Your host is...
+   003 This server was created...
+   004 Server info
+   331 No topic is set
+   332 Topic is...
+   341 Invite acknowledgement
+   353 Names list
+   366 End of NAMES list
+   401 No such nick
+   403 No such channel
+   411 No recipient given
+   412 No text to send
+   421 Unknown command
+   431 No nickname given
+   433 Nickname already in use
+   441 They aren't on that channel
+   442 You're not on that channel
+   443 User is already on channel
+   451 You have not registered
+   461 Not enough parameters
+   462 You may not reregister
+   464 Password incorrect
+   471 Cannot join channel (+l)
+   473 Cannot join channel (+i)
+   475 Cannot join channel (+k)
+   482 You're not channel operator
+
+
+LIMITACIONES/CONSIDERACIONES:
+------------------------------
+
+⚠️ SIN PERSISTENCIA
+   Los canales se eliminan automáticamente cuando quedan vacíos
+   Esto es correcto para IRC estándar
+
+⚠️ SIN VALIDACIÓN COMPLEJA DE NICKNAMES
+   Acepta nicknames simples sin caracteres especiales complejos
+   Validación por unicidad funciona correctamente
+
+⚠️ WHO/WHOIS LIMITADOS
+   El comando WHO se ignora completamente
+   No es crítico para funcionalidad básica
+
+⚠️ SIN OPERADORES DE SERVIDOR
+   Solo operadores de canal implementados
+   Suficiente para requisitos de 42
+
+⚠️ BUFFER LIMITADO A 512 BYTES
+   Estándar IRC, líneas muy largas se truncarían
+   Implementación correcta del estándar
+
+⚠️ SIN TIMEOUT PARA CONEXIONES INACTIVAS
+   Conexiones permanecen activas indefinidamente
+   Se pueden mejorar con IDLE tracking
+
+================================================================================
+5. COMPILACIÓN Y USO
+================================================================================
+
+COMPILACIÓN
+-----------
+make              # Compila target 'all': genera ircserv
+make bonus        # Compila con Bot.cpp si existe: genera ircserv_bonus
+make clean        # Elimina archivos .o y .d
+make fclean       # Elimina todo: .o, .d, ircserv, ircserv_bonus
+make re           # fclean + all (recompilación completa
+
+EJECUCIÓN
+---------
+./ircserv <puerto> <contraseña>
+
+Ejemplo:
+  ./ircserv 6667 micontraseña
+
+CONEXIÓN CON CLIENTE IRC
+------------------------
+
+Opción 1: Netcat (simple, sin interfaz)
+  nc localhost 6667
+
+  Luego escribir manualmente:
+  PASS micontraseña
+  NICK miNick
+  USER miuser 0 * :Mi Nombre Real
+
+Opción 2: Telnet
+  telnet localhost 6667
+
+Opción 3: Cliente IRC real (irssi)
+  irssi --connect=localhost --port=6667 -c "#general"
+  Después: /nick miNick
+           /msg NickServ IDENTIFY contraseña
+
+Opción 4: Cliente GUI (hexchat, mIRC, etc.)
+  Crear servidor: localhost:6667
+  Contraseña: micontraseña
+
+VERIFICACIÓN
+-----------
+Una vez conectado con éxito verá:
+  :ft_irc 001 <nick> :Welcome to the Internet Relay Network...
+  :ft_irc 002 <nick> :Your host is ft_irc, running ft_irc
+  :ft_irc 003 <nick> :This server was created just now
+  :ft_irc 004 <nick> :ft_irc ft_irc v1.0
+
+Comandos de prueba:
+  JOIN #test           → Crear/entrar a canal #test
+  PRIVMSG #test :hola  → Enviar mensaje al canal
+  PRIVMSG nick :hola   → Enviar mensaje privado
+  TOPIC #test :Tema    → Cambiar tema
+  MODE #test +i        → Activar modo invite-only
+  INVITE nick #test    → Invitar usuario
+  KICK #test nick      → Expulsar usuario (si es operador)
+  QUIT                 → Desconectar
+
+================================================================================
+CONCLUSIÓN
+================================================================================
+
+El proyecto ft_irc implementa un SERVIDOR IRC FUNCIONAL Y BIEN ESTRUCTURADO 
+que cumple con los requisitos principales de la escuela 42.
+
+PUNTOS FUERTES:
+• Arquitectura limpia: Separación clara entre Server/Client/Channel
+• I/O eficiente: Uso correcto de poll() para concurrencia
+• Manejo de errores: Validación adecuada de comandos y parámetros
+• Protección de recursos: Prohibición de copias con OCF (operator=)
+• Códigos IRC: Implementación correcta de respuestas estándar
+• Comandos esenciales: Todos los comandos principales funcionan
+
+ÁREAS PARA MEJORA:
+• Timeout para conexiones inactivas
+• Validación más robusta de nicknames/canales
+• Implementación de WHO/WHOIS
+• Manejo de modos más complejos (+v, +m, etc.)
+• Persistencia de datos (archivos de configuración)
+
+El código está listo para uso en desarrollo y cumple con los estándares 
+de calidad esperados en proyectos de 42 School.
+
+================================================================================
+Fecha de análisis: 28 de Abril de 2026
+Estándar C++: C++98 con flags -Wall -Wextra -Werror
+================================================================================

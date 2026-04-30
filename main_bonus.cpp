@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   main.cpp                                           :+:      :+:    :+:   */
+/*   main_bonus.cpp                                     :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: carbon <carbon@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -11,9 +11,13 @@
 /* ************************************************************************** */
 
 #include "Server.hpp"
+#include "Bot.hpp"
 #include <iostream>
 #include <cstdlib>
 #include <stdexcept>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <signal.h>
 
 int main(int argc, char* argv[])
 {
@@ -42,7 +46,39 @@ int main(int argc, char* argv[])
     try
     {
         Server server(port, password);
-        server.run();
+
+        // Iniciar bot en proceso hijo (fork)
+        pid_t pid = fork();
+        if (pid == 0)
+        {
+            // Proceso hijo: ejecuta el bot
+            sleep(1); // Esperar a que el servidor esté listo
+            try
+            {
+                Bot bot("localhost", port, password);
+                bot.run();
+            }
+            catch (const std::exception& e)
+            {
+                std::cerr << "[Bot Error] " << e.what() << std::endl;
+            }
+            exit(0);
+        }
+        else if (pid > 0)
+        {
+            // Proceso padre: ejecuta el servidor
+            std::cout << "[Server] Iniciando servidor en puerto " << port << std::endl;
+            std::cout << "[Server] Bot iniciado en proceso " << pid << std::endl;
+            
+            // Ignorar SIGCHLD para que el proceso hijo se limpie automáticamente
+            signal(SIGCHLD, SIG_IGN);
+            
+            server.run();
+        }
+        else
+        {
+            throw std::runtime_error("fork() failed");
+        }
     }
     catch (const std::exception& e)
     {
