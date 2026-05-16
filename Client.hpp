@@ -25,6 +25,7 @@ class Client
 		// Buffer de entrada
 		void        appendBuffer(const char* data, int len);
 		bool        getLine(std::string& line);
+		bool        hasPendingBuffer() const;
 
 		// Estado de registro
 		bool        isRegistered() const;

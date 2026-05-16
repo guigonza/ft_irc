@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Bot.hpp                                            :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: Guille <Guille@student.42.fr>              +#+  +:+       +#+        */
+/*   By: Bot Dev <bot@42.fr>                          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2026/04/28 12:00:00 by Guille            #+#    #+#             */
-/*   Updated: 2026/04/28 12:00:00 by Guille           ###   ########.fr        */
+/*   Created: 2026/05/02 10:00:00 by Bot Dev           #+#    #+#             */
+/*   Updated: 2026/05/02 10:00:00 by Bot Dev          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,63 +16,50 @@
 # include <string>
 # include <vector>
 # include <map>
-# include <ctime>
-# include <sys/socket.h>
+
+class Server;
+class Channel;
+class Client;
 
 class Bot
 {
 	public:
 
-		Bot(const std::string& host, int port, const std::string& password);
+		Bot(const std::string& name = "BotMaster");
 		~Bot();
 
-		void run();
+		// Inicialización y control
+		void setServer(Server* server);
+		void onServerStart();
+		void onChannelCreated(Channel* channel);
+		void onMessageReceived(Channel* channel, const std::string& sender, const std::string& message);
+
+		// Enviar mensajes
+		void sendMessageToChannel(Channel* channel, const std::string& message);
+		void sendPrivateMessage(const std::string& clientNick, const std::string& message);
+
+		// Obtener info
+		const std::string& getName() const;
+		bool isActive() const;
 
 	private:
 
-		// OCF — prohibido copiar
-		Bot();
-		Bot(const Bot&);
-		Bot& operator=(const Bot&);
+		std::string	_name;
+		Server*		_server;
+		bool		_active;
 
-		// Conexión
-		void _connect();
-		void _authenticate();
-		void _disconnect();
+		// Procesamiento de comandos
+		bool _processCommand(Channel* channel, const std::string& sender, const std::string& message);
+		void _handleHelpCommand(Channel* channel);
+		void _handleInfoCommand(Channel* channel);
+		void _handleListCommand(Channel* channel);
+		void _handleWelcomeCommand(Channel* channel);
+	void _handlePingCommand(Channel* channel, const std::string& sender);	void _handleEchoCommand(Channel* channel, const std::string& args);
 
-		// Bucle principal
-		void _handleMessage(const std::string& line);
-		std::string _receive();
-		void _send(const std::string& msg);
-
-		// Parseo de comandos
-		void _processCommand(const std::string& channel, 
-							const std::string& user,
-							const std::string& command);
-
-		// Comandos del bot
-		void _cmdHelp(const std::string& channel);
-		void _cmdEcho(const std::string& channel, const std::string& args);
-		void _cmdInfo(const std::string& channel);
-		void _cmdContador(const std::string& channel, const std::string& args);
-		void _cmdHora(const std::string& channel);
-		void _cmdUsuarios(const std::string& channel);
-		void _cmdPing(const std::string& channel);
-
-		// Helpers
-		void _updateChannels(const std::string& line);
-
-		// Atributos
-		std::string                    _host;
-		int                            _port;
-		std::string                    _password;
-		std::string                    _nick;
-		int                            _fd;
-		std::string                    _inbuf;
-		int                            _commandCount;
-		time_t                         _startTime;
-		std::vector<std::string>       _joinedChannels;
-		bool                           _authenticated;
+	// Utilidades
+	bool _isCommand(const std::string& message) const;
+	std::string _extractCommand(const std::string& message) const;
+	std::string _extractArgs(const std::string& message) const;		std::vector<std::string> _splitString(const std::string& str, char delimiter) const;
 };
 
 #endif

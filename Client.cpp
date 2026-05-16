@@ -60,6 +60,11 @@ bool Client::getLine(std::string& line)
     _inbuf.erase(0, pos + (_inbuf[pos] == '\r' ? 2 : 1));
     return true;
 }
+
+bool Client::hasPendingBuffer() const
+{
+    return !_inbuf.empty();
+}
 // ─────────────────────────────────────────────
 // Estado de registro
 // ─────────────────────────────────────────────

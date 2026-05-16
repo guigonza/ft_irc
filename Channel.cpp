@@ -14,7 +14,6 @@
 #include "Client.hpp"
 #include <sys/socket.h>
 #include <sstream>
-#include <iostream>
 
 // ─────────────────────────────────────────────
 // OCF
