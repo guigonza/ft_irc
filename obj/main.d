@@ -1,5 +1,2 @@
-obj/main.o: main.cpp Server.hpp FileHandler.hpp
-
+obj/main.o: main.cpp Server.hpp
 Server.hpp:
-
-FileHandler.hpp:

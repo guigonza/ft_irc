@@ -1,12 +1,7 @@
-obj/Server.o: Server.cpp Server.hpp FileHandler.hpp Client.hpp \
-  Channel.hpp Bot.hpp
-
+obj/Server.o: Server.cpp Server.hpp Client.hpp Channel.hpp Bot.hpp \
+ FileHandler.hpp
 Server.hpp:
-
-FileHandler.hpp:
-
 Client.hpp:
-
 Channel.hpp:
-
 Bot.hpp:
+FileHandler.hpp:

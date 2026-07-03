@@ -6,7 +6,7 @@
 /*   By: alejandro <alejandro@student.42.fr>        +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/03/23 10:10:58 by Guille            #+#    #+#             */
-/*   Updated: 2026/07/03 17:32:41 by alejandro        ###   ########.fr       */
+/*   Updated: 2026/07/03 17:35:54 by alejandro        ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -24,6 +24,7 @@
 # include <sstream>
 # include <cerrno>
 # include <arpa/inet.h>
+# include "FileHandler.hpp"
 
 // ─────────────────────────────────────────────
 // OCF
@@ -210,8 +211,6 @@ void Server::_disconnectClient(int fd)
 		}
 	}
 	_cleanEmptyChannels();
-	_fileHandler.clearInbox(client->getNick());//CAMBIOS
-
 	// Eliminar del array de poll
 	for (size_t i = 0; i < _fds.size(); i++)
 	{
