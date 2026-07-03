@@ -17,7 +17,6 @@
 # include <vector>
 # include <map>
 # include <poll.h>
-# include "FileHandler.hpp"
 # include <cstdlib>
 
 
@@ -40,8 +39,6 @@ class Server
 		Server();
 		Server(const Server&);
 		Server& operator=(const Server&);
-		FileHandler _fileHandler;
-
 		// Setup
 		void _setupSocket();
 
@@ -77,8 +74,6 @@ class Server
 		void _cmdTopic (Client& c, const std::vector<std::string>& params,
 						const std::string& trailing);
 		void _cmdMode  (Client& c, const std::vector<std::string>& params);
-
-		void _cmdFile(Client& client, const std::vector<std::string>& params, const std::string& trailing); //CAMBIOS
 
 		// Helpers
 		void     _send       (int fd, const std::string& msg);

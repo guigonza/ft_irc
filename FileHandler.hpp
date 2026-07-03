@@ -2,33 +2,21 @@
 # define FILEHANDLER_HPP
 
 # include <string>
-# include <vector>
-# include <map>
 
-struct FileInfo {
-	std::string filename;
-	std::string content;
-	std::string senderNick;
-};
-
+//CAMBIOS - Clase de utilidad estatica para parsear mensajes DCC (CTCP)
+// No instanciable - solo metodos estaticos
 class FileHandler {
 	public:
-		FileHandler();
-		~FileHandler();
+		//CAMBIOS - Comprueba si un trailing de PRIVMSG es CTCP con DCC
+		static bool isDCCMessage(const std::string& trailing);
 
-		// Operaciones principales
-		void                saveFile(const std::string& target, const std::string& name, 
-									 const std::string& content, const std::string& sender);
-		FileInfo*           getFile(const std::string& target, const std::string& filename);
-		void                removeFile(const std::string& target, const std::string& filename);
-		
-		// Consultas
-		std::vector<FileInfo> getPendingList(const std::string& target);
-		void                clearInbox(const std::string& nick);
+		//CAMBIOS - Parsea DCC SEND extrayendo filename, ip entera, puerto y tamanio
+		static bool parseDCCSend(const std::string& trailing, std::string& outFilename,
+								 unsigned long& outIp, unsigned short& outPort,
+								 unsigned long& outSize);
 
 	private:
-		// Mapa de: Nickname del receptor -> Lista de archivos pendientes
-		std::map<std::string, std::vector<FileInfo> > _inboxes;
+		FileHandler(); // No instanciable
 };
 
 #endif

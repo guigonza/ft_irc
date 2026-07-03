@@ -1,46 +1,49 @@
 #include "FileHandler.hpp"
+#include <sstream>
+#include <cstdlib>
+#include <iostream>
 
-FileHandler::FileHandler() {}
-FileHandler::~FileHandler() {}
-
-void FileHandler::saveFile(const std::string& target, const std::string& name, 
-						   const std::string& content, const std::string& sender) {
-	FileInfo fi;
-	fi.filename = name;
-	fi.content = content;
-	fi.senderNick = sender;
-	_inboxes[target].push_back(fi);
+//CAMBIOS - Comprueba si un trailing de PRIVMSG es un mensaje CTCP con DCC
+// Formato: \x01DCC <comando> ... \x01
+bool FileHandler::isDCCMessage(const std::string& trailing) {
+	return (trailing.size() >= 6
+			&& static_cast<unsigned char>(trailing[0]) == 0x01
+			&& trailing.compare(1, 4, "DCC ") == 0);
 }
 
-std::vector<FileInfo> FileHandler::getPendingList(const std::string& target) {
-	if (_inboxes.count(target))
-		return _inboxes[target];
-	return std::vector<FileInfo>();
-}
+//CAMBIOS - Parsea un mensaje DCC SEND extrayendo los campos
+// Formato: \x01DCC SEND <filename> <ip_int32> <port> <size>\x01
+bool FileHandler::parseDCCSend(const std::string& trailing, std::string& outFilename,
+							   unsigned long& outIp, unsigned short& outPort,
+							   unsigned long& outSize) {
+	if (!isDCCMessage(trailing))
+		return false;
+	if (trailing.size() < 11 || trailing.compare(5, 5, "SEND ") != 0)
+		return false;
 
-FileInfo* FileHandler::getFile(const std::string& target, const std::string& filename) {
-	if (_inboxes.count(target)) {
-		std::vector<FileInfo>& box = _inboxes[target];
-		for (size_t i = 0; i < box.size(); ++i) {
-			if (box[i].filename == filename)
-				return &box[i];
-		}
-	}
-	return NULL;
-}
+	// Datos despues de "DCC SEND "
+	std::string data = trailing.substr(10);
+	// Quitar \x01 final si existe
+	if (!data.empty() && static_cast<unsigned char>(data[data.size() - 1]) == 0x01)
+		data.erase(data.size() - 1);
 
-void FileHandler::removeFile(const std::string& target, const std::string& filename) {
-	if (_inboxes.count(target)) {
-		std::vector<FileInfo>& box = _inboxes[target];
-		for (std::vector<FileInfo>::iterator it = box.begin(); it != box.end(); ++it) {
-			if (it->filename == filename) {
-				box.erase(it);
-				break;
-			}
-		}
-	}
-}
+	std::istringstream ss(data);
+	std::string token;
 
-void FileHandler::clearInbox(const std::string& nick) {
-	_inboxes.erase(nick);
+	if (!(ss >> outFilename))
+		return false;
+
+	if (!(ss >> token))
+		return false;
+	outIp = std::strtoul(token.c_str(), NULL, 10);
+
+	if (!(ss >> token))
+		return false;
+	outPort = static_cast<unsigned short>(std::strtoul(token.c_str(), NULL, 10));
+
+	if (!(ss >> token))
+		return false;
+	outSize = std::strtoul(token.c_str(), NULL, 10);
+
+	return true;
 }
