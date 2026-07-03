@@ -8,7 +8,10 @@
 bool FileHandler::isDCCMessage(const std::string& trailing) {
 	return (trailing.size() >= 6
 			&& static_cast<unsigned char>(trailing[0]) == 0x01
-			&& trailing.compare(1, 4, "DCC ") == 0);
+			&& trailing[1] == 'D'
+			&& trailing[2] == 'C'
+			&& trailing[3] == 'C'
+			&& trailing[4] == ' ');
 }
 
 //CAMBIOS - Parsea un mensaje DCC SEND extrayendo los campos
@@ -18,13 +21,16 @@ bool FileHandler::parseDCCSend(const std::string& trailing, std::string& outFile
 							   unsigned long& outSize) {
 	if (!isDCCMessage(trailing))
 		return false;
-	if (trailing.size() < 11 || trailing.compare(5, 5, "SEND ") != 0)
+	if (trailing.size() < 11
+		|| trailing[5] != 'S' || trailing[6] != 'E'
+		|| trailing[7] != 'N' || trailing[8] != 'D'
+		|| trailing[9] != ' ')
 		return false;
 
 	// Datos despues de "DCC SEND "
 	std::string data = trailing.substr(10);
 	// Quitar \x01 final si existe
-	if (!data.empty() && static_cast<unsigned char>(data[data.size() - 1]) == 0x01)
+	if (static_cast<unsigned char>(data[data.size() - 1]) == 0x01)
 		data.erase(data.size() - 1);
 
 	std::istringstream ss(data);
