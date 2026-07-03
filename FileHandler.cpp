@@ -41,15 +41,31 @@ bool FileHandler::parseDCCSend(const std::string& trailing, std::string& outFile
 
 	if (!(ss >> token))
 		return false;
-	outIp = std::strtoul(token.c_str(), NULL, 10);
+	{
+		char *end = NULL;
+		outIp = std::strtoul(token.c_str(), &end, 10);
+		if (*end != '\0' || token.empty())
+			return false;
+	}
 
 	if (!(ss >> token))
 		return false;
-	outPort = static_cast<unsigned short>(std::strtoul(token.c_str(), NULL, 10));
+	{
+		char *end = NULL;
+		unsigned long tmp = std::strtoul(token.c_str(), &end, 10);
+		if (*end != '\0' || token.empty())
+			return false;
+		outPort = static_cast<unsigned short>(tmp);
+	}
 
 	if (!(ss >> token))
 		return false;
-	outSize = std::strtoul(token.c_str(), NULL, 10);
+	{
+		char *end = NULL;
+		outSize = std::strtoul(token.c_str(), &end, 10);
+		if (*end != '\0' || token.empty())
+			return false;
+	}
 
 	return true;
 }
