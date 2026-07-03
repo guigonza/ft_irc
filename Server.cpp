@@ -6,7 +6,7 @@
 /*   By: alejandro <alejandro@student.42.fr>        +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/03/23 10:10:58 by Guille            #+#    #+#             */
-/*   Updated: 2026/04/30 18:51:01 by alejandro        ###   ########.fr       */
+/*   Updated: 2026/07/03 17:32:41 by alejandro        ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -301,6 +301,23 @@ void Server::_processLine(Client& client, const std::string& line)
 		return;
 	}
 
+	//CAMBIOS - Detectar DCC SEND (CTCP) en PRIVMSG sin interferir con el reenvio
+	if (command == "PRIVMSG" && !trailing.empty()
+		&& static_cast<unsigned char>(trailing[0]) == 0x01) {
+			
+		// El mensaje CTCP se reenviara igual en _cmdPrivmsg abajo
+		// Aqui solo parseamos y logueamos para seguimiento
+		std::string fname;
+		unsigned long ip, sz;
+		unsigned short port;
+		if (FileHandler::parseDCCSend(trailing, fname, ip, port, sz))
+		{
+			std::cout << "[DCC SEND] " << client.getNick() << " -> " << params[0]
+					  << " \"" << fname << "\" " << sz << " bytes"
+					  << " (port " << port << ")" << std::endl;
+		}
+	}
+
 	if      (command == "JOIN")    _cmdJoin   (client, params);
 	else if (command == "PART")    _cmdPart   (client, params, trailing);
 	else if (command == "PRIVMSG") _cmdPrivmsg(client, params, trailing);
@@ -309,7 +326,6 @@ void Server::_processLine(Client& client, const std::string& line)
 	else if (command == "TOPIC")   _cmdTopic  (client, params, trailing);
 	else if (command == "MODE")    _cmdMode   (client, params);
 	else if (command == "PING")    _cmdPing   (client, params, trailing);
-	else if (command == "FILE")    _cmdFile   (client, params, trailing);//CAMBIOS
 	else if (command == "WHO")     return; // algunos clientes lo piden, ignorar
 	else
 		_sendReply(client.getFd(), "421", client.getNick(),
@@ -966,67 +982,3 @@ void Server::_cmdMode(Client& client, const std::vector<std::string>& params)
 	}
 }
 
-void Server::_cmdFile(Client& client, const std::vector<std::string>& params, const std::string& trailing) //CAMBIOS
-{
-	if (params.empty())
-	{
-		_sendReply(client.getFd(), "461", client.getNick(), "FILE :Not enough parameters (SEND/GET/LIST)");
-		return;
-	}
-
-	std::string sub = params[0];
-	for (size_t i = 0; i < sub.size(); ++i)
-	{
-		sub[i] = std::toupper(sub[i]);
-	}
-
-	if (sub == "SEND" && params.size() >= 3 && !trailing.empty())
-	{
-		Client* target = _getClientByNick(params[1]);
-		if (!target)
-		{
-			_sendReply(client.getFd(), "401", client.getNick(), params[1] + " :No such nick");
-			return;
-		}
-
-		_fileHandler.saveFile(params[1], params[2], trailing, client.getNick());
-		_sendReply(client.getFd(), "NOTICE", client.getNick(), "File sent to " + params[1]);
-		_sendReply(target->getFd(), "NOTICE", target->getNick(),
-				   client.getNick() + " sent you: " + params[2]);
-	}
-	else if (sub == "LIST")
-	{
-		std::vector<FileInfo> list = _fileHandler.getPendingList(client.getNick());
-
-		std::string pendingMsg = "Pending files: ";
-		if (list.empty())
-		{
-			pendingMsg += "None";
-		}
-
-		_sendReply(client.getFd(), "NOTICE", client.getNick(), pendingMsg);
-
-		for (size_t i = 0; i < list.size(); ++i)
-		{
-			_sendReply(client.getFd(), "NOTICE", client.getNick(),
-					   "- " + list[i].filename + " from " + list[i].senderNick);
-		}
-	}
-	else if (sub == "GET" && params.size() >= 2)
-	{
-		FileInfo* fi = _fileHandler.getFile(client.getNick(), params[1]);
-
-		if (fi)
-		{
-			_sendReply(client.getFd(), "NOTICE", client.getNick(),
-					   "DATA " + fi->filename + " :" + fi->content);
-
-			_fileHandler.removeFile(client.getNick(), params[1]);
-		}
-		else
-		{
-			_sendReply(client.getFd(), "404", client.getNick(),
-					   params[1] + " :File not found");
-		}
-	}
-}
