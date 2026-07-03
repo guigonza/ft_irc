@@ -3,21 +3,17 @@
 /*                                                        :::      ::::::::   */
 /*   main_bonus.cpp                                     :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: carbon <carbon@student.42.fr>              +#+  +:+       +#+        */
+/*   By: guigonza <guigonza@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/03/23 10:11:06 by Guille            #+#    #+#             */
-/*   Updated: 2026/04/28 21:24:27 by carbon           ###   ########.fr       */
+/*   Updated: 2026/07/03 19:19:30 by guigonza         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "Server.hpp"
-#include "Bot.hpp"
 #include <iostream>
 #include <cstdlib>
 #include <stdexcept>
-#include <unistd.h>
-#include <sys/wait.h>
-#include <signal.h>
 
 int main(int argc, char* argv[])
 {
@@ -46,39 +42,7 @@ int main(int argc, char* argv[])
     try
     {
         Server server(port, password);
-
-        // Iniciar bot en proceso hijo (fork)
-        pid_t pid = fork();
-        if (pid == 0)
-        {
-            // Proceso hijo: ejecuta el bot
-            sleep(1); // Esperar a que el servidor esté listo
-            try
-            {
-                Bot bot("localhost", port, password);
-                bot.run();
-            }
-            catch (const std::exception& e)
-            {
-                std::cerr << "[Bot Error] " << e.what() << std::endl;
-            }
-            exit(0);
-        }
-        else if (pid > 0)
-        {
-            // Proceso padre: ejecuta el servidor
-            std::cout << "[Server] Iniciando servidor en puerto " << port << std::endl;
-            std::cout << "[Server] Bot iniciado en proceso " << pid << std::endl;
-            
-            // Ignorar SIGCHLD para que el proceso hijo se limpie automáticamente
-            signal(SIGCHLD, SIG_IGN);
-            
-            server.run();
-        }
-        else
-        {
-            throw std::runtime_error("fork() failed");
-        }
+        server.run();
     }
     catch (const std::exception& e)
     {

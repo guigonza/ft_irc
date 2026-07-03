@@ -3,10 +3,10 @@
 #                                                         :::      ::::::::    #
 #    Makefile                                           :+:      :+:    :+:    #
 #                                                     +:+ +:+         +:+      #
-#    By: alejandro <alejandro@student.42.fr>        +#+  +:+       +#+         #
+#    By: guigonza <guigonza@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/02/08 07:53:27 by Guille            #+#    #+#              #
-#    Updated: 2026/04/30 16:54:35 by alejandro        ###   ########.fr        #
+#    Updated: 2026/07/03 19:19:30 by guigonza         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -16,7 +16,7 @@ CXX = c++
 CXXFLAGS = -Wall -Wextra -Werror -std=c++98 
 DEPFLAGS = -MMD -MP
 SRCS =  main.cpp Server.cpp Client.cpp Channel.cpp FileHandler.cpp Bot.cpp
-BONUS_SRC = $(SRCS)
+BONUS_SRC = main_bonus.cpp Server.cpp Client.cpp Channel.cpp FileHandler.cpp Bot.cpp
 OBJDIR = obj
 OBJS = $(addprefix $(OBJDIR)/, $(SRCS:.cpp=.o))
 BONUS_OBJ = $(addprefix $(OBJDIR)/, $(BONUS_SRC:.cpp=.o))
